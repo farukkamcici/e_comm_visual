@@ -1,0 +1,16 @@
+# IDE
+.idea/
+*.iml
+
+# Virtualenv
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store

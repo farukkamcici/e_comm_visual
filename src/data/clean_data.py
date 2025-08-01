@@ -23,6 +23,7 @@ def clean_data():
     df['session_start'] = df.groupby('user_session')['event_time'].transform('min')
     df['time_since_start'] = (df['event_time'] - df['session_start']).dt.total_seconds()
     df['prev_event_gap'] = df.groupby('user_session')['event_time'].diff().dt.total_seconds().fillna(0)
+    df['purchase_spending'] = df['price'].where(df['event_type']=='purchase', other=0)
 
     return df
 

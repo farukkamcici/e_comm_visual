@@ -29,5 +29,3 @@ deployment_package.*
 dist/
 build/
 create_deployment_package.py
-app_cloud.py
-cloud_data_loader.py

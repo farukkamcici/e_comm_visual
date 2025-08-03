@@ -20,3 +20,6 @@ __pycache__/
 
 # Allow documentation examples (if needed)
 !examples/*.json
+
+# Deployment package (upload to GitHub Releases instead)
+deployment_package.pkl.gz

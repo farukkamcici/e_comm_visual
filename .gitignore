@@ -16,3 +16,7 @@ __pycache__/
 .DS_Store
 
 *.csv
+*.json
+
+# Allow documentation examples (if needed)
+!examples/*.json

@@ -21,5 +21,13 @@ __pycache__/
 # Allow documentation examples (if needed)
 !examples/*.json
 
-# Deployment package (upload to GitHub Releases instead)
-deployment_package.pkl.gz
+# Deployment files (not needed for portfolio)
+deployment_package.*
+*.pkl.gz
+*.tar.gz
+*.zip
+dist/
+build/
+create_deployment_package.py
+app_cloud.py
+cloud_data_loader.py

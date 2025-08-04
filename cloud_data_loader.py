@@ -5,10 +5,7 @@ Loads pre-processed data package from GitHub Releases or other cloud storage
 
 import streamlit as st
 import pandas as pd
-import pickle
-import gzip
 import requests
-from io import BytesIO
 from pathlib import Path
 import json
 
@@ -63,30 +60,19 @@ def load_summary_data_cloud():
 
 @st.cache_data  
 def load_feature_data_cloud():
-    """Feature data loading disabled - using JSON summary only"""
+    """Feature data not available in cloud mode - JSON summary only"""
     return None, None, None, None
 
 @st.cache_data
 def load_cleaned_data_cloud():
-    """Cleaned data loading disabled - using JSON summary only"""
+    """Raw data not available in cloud mode - JSON summary only"""
     return pd.DataFrame()
 
 def check_deployment_mode():
     """Check if running in deployment mode or local mode"""
-    local_files = [
-        "data/features/session_features.csv",
-        "data/features/user_features.csv", 
-        "outputs/summary_2025080105.json"
-    ]
-    
-    # If any local files exist, we're in local mode
-    for file_path in local_files:
-        if Path(file_path).exists():
-            return "local"
-    
-    # Check if deployment package exists
-    if Path("deployment_package.pkl.gz").exists():
-        return "local_deployment"
+    # Check if local JSON summary exists
+    if Path("outputs/summary_2025080105.json").exists():
+        return "local"
     
     return "cloud"
 
@@ -99,13 +85,6 @@ def get_data_loaders():
         return {
             "load_summary_data": load_summary_data_cloud,
             "load_feature_data": load_feature_data_cloud,
-            "load_cleaned_data": load_cleaned_data_cloud
-        }
-    elif mode == "local_deployment":
-        st.sidebar.info("📦 Running with local deployment package")
-        return {
-            "load_summary_data": load_summary_data_cloud,
-            "load_feature_data": load_feature_data_cloud, 
             "load_cleaned_data": load_cleaned_data_cloud
         }
     else:

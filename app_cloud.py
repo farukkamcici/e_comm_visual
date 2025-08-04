@@ -24,79 +24,16 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Get appropriate data loading functions - now only using JSON summary
+# Get cloud data loading functions - JSON summary only
 data_loaders = get_data_loaders()
 load_summary_data = data_loaders["load_summary_data"]
 
-# Feature and cleaned data now come from JSON summary only
-def load_feature_data():
-    # Feature data loading disabled - using JSON summary only
-    return None, None, None, None
-
-def load_cleaned_data():
-    # Cleaned data loading disabled - using JSON summary only  
-    return pd.DataFrame()
-
-def create_sidebar_filters(session_df, cleaned_df):
-    """Create sidebar filters for date range, brands, and categories"""
-    st.sidebar.title("🔧 Filters & Controls")
-    
-    filters = {}
-    
-    if cleaned_df is not None and not cleaned_df.empty:
-        min_date = cleaned_df['event_time'].min().date()
-        max_date = cleaned_df['event_time'].max().date()
-        
-        st.sidebar.markdown("### 📅 Date Range")
-        date_range = st.sidebar.date_input(
-            "Select Date Range",
-            value=(min_date, max_date),
-            min_value=min_date,
-            max_value=max_date
-        )
-        filters['date_range'] = date_range
-    
-    if cleaned_df is not None and not cleaned_df.empty:
-        st.sidebar.markdown("### 🏷️ Brand Filter")
-        all_brands = sorted(cleaned_df['brand'].dropna().unique())
-        search_brand = st.sidebar.text_input("🔍 Search Brands", placeholder="Type to search...")
-        
-        if search_brand:
-            filtered_brands = [b for b in all_brands if search_brand.lower() in b.lower()]
-        else:
-            filtered_brands = all_brands[:50]
-            
-        selected_brands = st.sidebar.multiselect(
-            "Select Brands",
-            options=filtered_brands,
-            default=[]
-        )
-        filters['brands'] = selected_brands
-    
-    if cleaned_df is not None and not cleaned_df.empty:
-        st.sidebar.markdown("### 📂 Category Filter")
-        all_categories = sorted(cleaned_df['category_code'].dropna().unique())
-        
-        category_display_map = {simplify_category_name(cat): cat for cat in all_categories}
-        display_categories = sorted(category_display_map.keys())
-        
-        search_category = st.sidebar.text_input("🔍 Search Categories", placeholder="Type to search...")
-        
-        if search_category:
-            filtered_display_categories = [c for c in display_categories if search_category.lower() in c.lower()]
-        else:
-            filtered_display_categories = display_categories[:50]
-            
-        selected_display_categories = st.sidebar.multiselect(
-            "Select Categories", 
-            options=filtered_display_categories,
-            default=[]
-        )
-        
-        selected_categories = [category_display_map[cat] for cat in selected_display_categories]
-        filters['categories'] = selected_categories
-    
-    return filters
+def create_sidebar_info():
+    """Create sidebar info for cloud deployment"""
+    st.sidebar.title("🛍️ E-Commerce Intelligence")
+    st.sidebar.markdown("### 📊 Data Source")
+    st.sidebar.info("Using pre-computed JSON summary data for fast cloud performance")
+    return {}
 
 def apply_filters(df, filters):
     """Apply selected filters to dataframe"""
@@ -942,7 +879,7 @@ def create_revenue_recovery_center(summary, filtered_df=None):
             peak_month = temporal.get("peak_revenue_month", "N/A")
             st.info(f"🎯 Focus campaigns in Q{int(peak_quarter['quarter'])} & Month {peak_month}")
 
-def create_advanced_session_analytics(summary, session_df, filtered_df=None):
+def create_advanced_session_analytics(summary):
     st.subheader("🔬 Advanced Session Intelligence")
     
     advanced = summary.get("advanced", {})
@@ -984,6 +921,8 @@ def create_advanced_session_analytics(summary, session_df, filtered_df=None):
             high_quality = next((q for q in quality_analysis if q['session_quality'] == 'High'), None)
             if high_quality:
                 st.success(f"🎯 High-quality sessions: {high_quality['view_to_purchase_rate']*100:.1f}% conversion")
+        else:
+            st.info("Session quality analysis not available in JSON summary.")
     
     with col2:
         st.markdown("**🛍️ Multi-Category Shopping Behavior**")
@@ -1017,10 +956,6 @@ def create_advanced_session_analytics(summary, session_df, filtered_df=None):
         st.plotly_chart(fig, use_container_width=True)
         
         st.metric("🔄 Multi-Category Conv.", f"{multi_cat_conv:.1f}%", help="Conversion rate for users who browse multiple product categories")
-        
-        if session_df is not None:
-            avg_brands_per_session = session_df['n_unique_brands'].mean()
-            st.metric("🏷️ Avg Brands/Session", f"{avg_brands_per_session:.1f}", help="Average number of different brands viewed per user session")
 
 def main():
     st.title("🛍️ E-Commerce Intelligence Hub")
@@ -1028,74 +963,43 @@ def main():
     st.markdown("---")
     
     summary = load_summary_data()
-    session_df, user_df, brand_df, category_df = load_feature_data()
-    cleaned_df = load_cleaned_data()
     
     if not summary:
         st.warning("⚠️ Summary data not available. Please run the analytics pipeline first.")
         return
     
-    filters = create_sidebar_filters(session_df, cleaned_df)
+    filters = create_sidebar_info()
     
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 📊 Export Reports")
-    to_excel, create_summary_report = create_export_functions()
-    
-    if st.sidebar.button("📋 Generate Comprehensive Report"):
-        try:
-            report_sheets = create_summary_report(summary, session_df, user_df, brand_df, category_df)
-            excel_data = to_excel(report_sheets)
-            st.sidebar.download_button(
-                "💾 Download Excel Report",
-                excel_data,
-                f"ecommerce_comprehensive_report_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-            st.sidebar.success("✅ Comprehensive report generated! Click download button above.")
-        except Exception as e:
-            st.sidebar.error(f"Error generating report: {str(e)}")
-    
-    filtered_cleaned_df = apply_filters(cleaned_df, filters) if cleaned_df is not None else cleaned_df
-    
-    if filters.get('brands') or filters.get('categories') or (filters.get('date_range') and len(filters['date_range']) == 2):
-        st.info(f"🔍 **Filters Active:** {len(filters.get('brands', []))} brands, {len(filters.get('categories', []))} categories" + 
-                (f", Date: {filters['date_range'][0]} to {filters['date_range'][1]}" if len(filters.get('date_range', [])) == 2 else ""))
-    
-    has_active_filters = filters.get('brands') or filters.get('categories') or (filters.get('date_range') and len(filters['date_range']) == 2)
-    create_executive_kpis(summary, filtered_cleaned_df if has_active_filters else None)
+    create_executive_kpis(summary)
     st.markdown("---")
     
     create_insights_panel(summary)
     st.markdown("---")
     
-    create_time_optimization_dashboard(summary, filtered_cleaned_df if has_active_filters else None)
+    create_time_optimization_dashboard(summary)
     st.markdown("---")
     
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "💎 Customer Intelligence", 
         "📊 Product Portfolio",
         "💡 Revenue Recovery",
         "🔬 Session Analytics",
-        "🔄 Retention & LTV",
         "🔍 Data Explorer"
     ])
     
     with tab1:
-        create_customer_value_segmentation(summary, filtered_cleaned_df if has_active_filters else None)
+        create_customer_value_segmentation(summary)
     
     with tab2:
-        create_product_portfolio_optimizer(summary, filtered_cleaned_df if has_active_filters else None)
+        create_product_portfolio_optimizer(summary)
     
     with tab3:
-        create_revenue_recovery_center(summary, filtered_cleaned_df if has_active_filters else None)
+        create_revenue_recovery_center(summary)
     
     with tab4:
-        create_advanced_session_analytics(summary, session_df, filtered_cleaned_df if has_active_filters else None)
+        create_advanced_session_analytics(summary)
     
     with tab5:
-        create_customer_retention_analysis(user_df, session_df, filtered_cleaned_df)
-    
-    with tab6:
         st.subheader("🔍 Advanced Data Explorer")
         
         explorer_tab1, explorer_tab2, explorer_tab3, explorer_tab4 = st.tabs([
@@ -1106,22 +1010,16 @@ def main():
         ])
         
         with explorer_tab1:
-            if session_df is not None:
-                st.markdown("**Session Features Sample**")
-                display_df = session_df
-                if filters:
-                    if 'date_range' in filters and len(filters['date_range']) == 2:
-                        start_date, end_date = filters['date_range']
-                        display_df = session_df[
-                            (session_df['session_started_at'].dt.date >= start_date) & 
-                            (session_df['session_started_at'].dt.date <= end_date)
-                        ]
-                st.dataframe(display_df.head(100))
-                
-                if user_df is not None:
-                    st.markdown("**Top Users by Spending**")
-                    top_users = user_df.nlargest(20, 'user_total_spending')
-                    st.dataframe(top_users)
+            st.markdown("**📊 JSON-Based Analytics Data**")
+            st.info("Feature data is not available in cloud mode. All analytics are computed from JSON summary data.")
+            
+            # Show segmentation data from JSON
+            segmentation = summary.get("segmentation", {})
+            segment_stats = segmentation.get("segment_stats", [])
+            if segment_stats:
+                st.markdown("**User Spending Segments**")
+                segment_df = pd.DataFrame(segment_stats)
+                st.dataframe(segment_df)
         
         with explorer_tab2:
             funnel = summary.get("funnel", {})
@@ -1143,38 +1041,35 @@ def main():
             st.json(summary)
         
         with explorer_tab4:
-            st.markdown("**🔍 Interactive Search & Filter**")
+            st.markdown("**🔍 Brand & Category Search**")
+            st.info("Search functionality uses JSON summary data from product performance analytics.")
             
-            if filtered_cleaned_df is not None and not filtered_cleaned_df.empty:
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    search_term = st.text_input("🔍 Search Products/Brands/Categories", placeholder="Enter search term...")
-                    
-                with col2:
-                    event_type_filter = st.selectbox("Filter by Event Type", 
-                                                   options=['All'] + list(filtered_cleaned_df['event_type'].unique()))
-                
-                search_df = filtered_cleaned_df.copy()
+            # Show brand search from JSON data
+            product_perf = summary.get("product_performance", {})
+            top_brands = product_perf.get("top_brands", [])
+            top_categories = product_perf.get("top_categories", [])
+            
+            if top_brands:
+                search_term = st.text_input("🔍 Search Brands", placeholder="Enter brand name...")
                 
                 if search_term:
-                    search_df = search_df[
-                        search_df['brand'].str.contains(search_term, case=False, na=False) |
-                        search_df['category_code'].str.contains(search_term, case=False, na=False)
-                    ]
-                
-                if event_type_filter != 'All':
-                    search_df = search_df[search_df['event_type'] == event_type_filter]
-                
-                st.markdown(f"**Search Results:** {len(search_df):,} records found")
-                
-                if len(search_df) > 0:
-                    st.markdown("**📋 Sample Data:")
-                    st.dataframe(search_df.head(50))
+                    matching_brands = [brand for brand in top_brands if search_term.lower() in brand.get('brand', '').lower()]
+                    if matching_brands:
+                        st.markdown(f"**Found {len(matching_brands)} matching brands:**")
+                        brands_df = pd.DataFrame(matching_brands)
+                        st.dataframe(brands_df)
+                    else:
+                        st.info("No brands found matching your search.")
                 else:
-                    st.info("No results found for your search criteria.")
-            else:
-                st.info("No data available for search. Please check your filters.")
+                    st.markdown("**Top Performing Brands:**")
+                    brands_df = pd.DataFrame(top_brands[:20])
+                    st.dataframe(brands_df)
+            
+            if top_categories:
+                st.markdown("---")
+                st.markdown("**Top Performing Categories:**")
+                categories_df = pd.DataFrame(top_categories[:20])
+                st.dataframe(categories_df)
 
 if __name__ == "__main__":
     main()

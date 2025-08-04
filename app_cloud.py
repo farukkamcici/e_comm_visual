@@ -24,11 +24,18 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Get appropriate data loading functions
+# Get appropriate data loading functions - now only using JSON summary
 data_loaders = get_data_loaders()
 load_summary_data = data_loaders["load_summary_data"]
-load_feature_data = data_loaders["load_feature_data"] 
-load_cleaned_data = data_loaders["load_cleaned_data"]
+
+# Feature and cleaned data now come from JSON summary only
+def load_feature_data():
+    # Feature data loading disabled - using JSON summary only
+    return None, None, None, None
+
+def load_cleaned_data():
+    # Cleaned data loading disabled - using JSON summary only  
+    return pd.DataFrame()
 
 def create_sidebar_filters(session_df, cleaned_df):
     """Create sidebar filters for date range, brands, and categories"""

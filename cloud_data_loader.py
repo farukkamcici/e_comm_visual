@@ -22,7 +22,7 @@ def load_deployment_package():
     """Load the pre-processed deployment package from cloud"""
     
     try:
-        response = requests.get(DEPLOYMENT_CONFIG["github_release_url"], timeout=30)
+        response = requests.get(DEPLOYMENT_CONFIG["github_release_url"], timeout=10)
         response.raise_for_status()
         
         with gzip.open(BytesIO(response.content), 'rb') as f:

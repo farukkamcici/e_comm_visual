@@ -1,0 +1,91 @@
+name: Advanced Keep Alive Monitor
+
+on:
+  schedule:
+    # Run every 25 minutes
+    - cron: '*/25 * * * *'
+  workflow_dispatch:
+
+jobs:
+  monitor-app:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check App Health
+      id: health_check
+      run: |
+        # Replace with your actual Streamlit Cloud URL
+        APP_URL="https://ecommvisual-abxuz8k68gjeubunhvrkdp.streamlit.app/
+        HEALTH_URL="$APP_URL/?health=check"
+        
+        echo "app_url=$APP_URL" >> $GITHUB_OUTPUT
+        echo "timestamp=$(date -u)" >> $GITHUB_OUTPUT
+        
+        # Try health check endpoint first
+        if curl -f -s --connect-timeout 15 --max-time 45 "$HEALTH_URL" > /dev/null 2>&1; then
+          echo "✅ Health check successful"
+          echo "status=healthy" >> $GITHUB_OUTPUT
+          echo "method=health_check" >> $GITHUB_OUTPUT
+        elif curl -f -s --connect-timeout 15 --max-time 60 "$APP_URL" > /dev/null 2>&1; then
+          echo "✅ Main app ping successful"
+          echo "status=alive" >> $GITHUB_OUTPUT
+          echo "method=main_app" >> $GITHUB_OUTPUT
+        else
+          echo "❌ App appears to be down or unresponsive"
+          echo "status=down" >> $GITHUB_OUTPUT
+          echo "method=failed" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+    
+    - name: Log Success
+      if: steps.health_check.outputs.status != 'down'
+      run: |
+        echo "📊 App Status: ${{ steps.health_check.outputs.status }}"
+        echo "🔗 URL: ${{ steps.health_check.outputs.app_url }}"
+        echo "⏰ Timestamp: ${{ steps.health_check.outputs.timestamp }}"
+        echo "🛠️ Method: ${{ steps.health_check.outputs.method }}"
+    
+    - name: Create Issue on Failure
+      if: failure()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const title = `🚨 Streamlit App Down - ${new Date().toISOString()}`;
+          const body = `
+          ## App Health Check Failed
+          
+          **Timestamp:** ${new Date().toUTCString()}
+          **App URL:** ${{ steps.health_check.outputs.app_url }}
+          **Status:** App is unresponsive
+          
+          ### Possible Causes:
+          - Streamlit Cloud service issues
+          - App crashed due to memory/resource limits
+          - Network connectivity problems
+          - Cold start taking longer than expected
+          
+          ### Next Steps:
+          1. Check Streamlit Cloud dashboard
+          2. Review app logs for errors
+          3. Consider redeploying if issue persists
+          
+          This issue was automatically created by the keep-alive monitoring workflow.
+          `;
+          
+          // Check if an issue already exists
+          const issues = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            labels: ['streamlit-down'],
+            state: 'open'
+          });
+          
+          if (issues.data.length === 0) {
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['bug', 'streamlit-down', 'automated']
+            });
+          }

@@ -9,6 +9,11 @@ from io import BytesIO
 import base64
 from cloud_data_loader import load_summary_data_cloud, load_feature_data_cloud, load_cleaned_data_cloud, show_data_status
 
+# Health check endpoint for Streamlit Cloud
+if st.query_params.get("health") == "check":
+    st.text("OK")
+    st.stop()
+
 def simplify_category_name(category_code):
     """Extract the last part of a dot-separated category name"""
     if pd.isna(category_code) or category_code == "":

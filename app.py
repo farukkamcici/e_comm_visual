@@ -7,6 +7,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from io import BytesIO
 import base64
+from cloud_data_loader import load_summary_data_cloud, load_feature_data_cloud, load_cleaned_data_cloud, show_data_status
 
 def simplify_category_name(category_code):
     """Extract the last part of a dot-separated category name"""
@@ -21,37 +22,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-@st.cache_data
-def load_summary_data():
-    try:
-        with open("outputs/summary_2025080105.json", "r") as f:
-            data = json.load(f)
-        return data.get("summary", {})
-    except FileNotFoundError:
-        st.error("Summary JSON not found. Please run the analytics pipeline first.")
-        return {}
-
-@st.cache_data
-def load_feature_data():
-    try:
-        session_df = pd.read_csv("data/features/session_features.csv", parse_dates=['session_started_at', 'session_ended_at'])
-        user_df = pd.read_csv("data/features/user_features.csv")
-        brand_df = pd.read_csv("data/features/brand_features.csv")
-        category_df = pd.read_csv("data/features/category_features.csv")
-        return session_df, user_df, brand_df, category_df
-    except FileNotFoundError:
-        st.error("Feature files not found. Please run the feature building pipeline first.")
-        return None, None, None, None
-
-@st.cache_data
-def load_cleaned_data():
-    try:
-        df = pd.read_csv("data/cleaned/cleaned_data.csv")
-        df['event_time'] = pd.to_datetime(df['event_time'])
-        return df
-    except FileNotFoundError:
-        st.error("Cleaned data not found.")
-        return pd.DataFrame()
+# Cloud data loading functions - these replace local file loading
+load_summary_data = load_summary_data_cloud
+load_feature_data = load_feature_data_cloud
+load_cleaned_data = load_cleaned_data_cloud
 
 def create_sidebar_filters(session_df, cleaned_df):
     """Create sidebar filters for date range, brands, and categories"""
@@ -75,19 +49,63 @@ def create_sidebar_filters(session_df, cleaned_df):
     if cleaned_df is not None and not cleaned_df.empty:
         st.sidebar.markdown("### 🏷️ Brand Filter")
         all_brands = sorted(cleaned_df['brand'].dropna().unique())
-        search_brand = st.sidebar.text_input("🔍 Search Brands", placeholder="Type to search...")
         
-        if search_brand:
-            filtered_brands = [b for b in all_brands if search_brand.lower() in b.lower()]
-        else:
-            filtered_brands = all_brands[:50]  # Limit for performance
+        # Initialize session state for selected brands
+        if 'selected_brands' not in st.session_state:
+            st.session_state.selected_brands = []
             
-        selected_brands = st.sidebar.multiselect(
-            "Select Brands",
-            options=filtered_brands,
-            default=[]
-        )
-        filters['brands'] = selected_brands
+        search_brand = st.sidebar.text_input("🔍 Search Brands", placeholder="Type to search...", key="brand_search")
+        
+        # Show search results below search bar
+        if search_brand:
+            matching_brands = [b for b in all_brands if search_brand.lower() in b.lower()]
+            if matching_brands:
+                st.sidebar.markdown(f"**Found {len(matching_brands)} brands:**")
+                # Show first 10 results with click buttons
+                for brand in matching_brands[:5]:
+                    col1, col2 = st.sidebar.columns([4, 1])
+                    with col1:
+                        if st.sidebar.button(f"{brand}", key=f"add_brand_{hash(brand)}", help=f"Add {brand}", use_container_width=True):
+                            if brand not in st.session_state.selected_brands:
+                                st.session_state.selected_brands.append(brand)
+                                st.rerun()
+                if len(matching_brands) > 5:
+                    st.sidebar.markdown(f"... and {len(matching_brands) - 10} more results")
+            else:
+                st.sidebar.info(f"No brands found matching '{search_brand}'")
+        
+        # Show currently selected brands in 2 columns
+        if st.session_state.selected_brands:
+            st.sidebar.markdown("**Selected Brands:**")
+            brands_to_remove = []
+            
+            # Display brands in 2-column layout
+            for i in range(0, len(st.session_state.selected_brands), 2):
+                col1, col2 = st.sidebar.columns(2)
+                
+                # First brand in this row
+                brand = st.session_state.selected_brands[i]
+                with col1:
+                    if st.button(f"❌ {brand}", key=f"remove_brand_{hash(brand)}", help=f"Remove {brand}", use_container_width=True):
+                        brands_to_remove.append(brand)
+                
+                # Second brand in this row (if exists)
+                if i + 1 < len(st.session_state.selected_brands):
+                    brand = st.session_state.selected_brands[i + 1]
+                    with col2:
+                        if st.button(f"❌ {brand}", key=f"remove_brand_{hash(brand)}", help=f"Remove {brand}", use_container_width=True):
+                            brands_to_remove.append(brand)
+            
+            # Remove brands marked for removal
+            for brand in brands_to_remove:
+                st.session_state.selected_brands.remove(brand)
+                st.rerun()
+            
+            if st.sidebar.button("Clear All Brands"):
+                st.session_state.selected_brands = []
+                st.rerun()
+        
+        filters['brands'] = st.session_state.selected_brands
     
     if cleaned_df is not None and not cleaned_df.empty:
         st.sidebar.markdown("### 📂 Category Filter")
@@ -96,21 +114,54 @@ def create_sidebar_filters(session_df, cleaned_df):
         category_display_map = {simplify_category_name(cat): cat for cat in all_categories}
         display_categories = sorted(category_display_map.keys())
         
-        search_category = st.sidebar.text_input("🔍 Search Categories", placeholder="Type to search...")
-        
-        if search_category:
-            filtered_display_categories = [c for c in display_categories if search_category.lower() in c.lower()]
-        else:
-            filtered_display_categories = display_categories[:50]  # Limit for performance
+        # Initialize session state for selected categories
+        if 'selected_categories' not in st.session_state:
+            st.session_state.selected_categories = []
             
-        selected_display_categories = st.sidebar.multiselect(
-            "Select Categories", 
-            options=filtered_display_categories,
-            default=[]
-        )
+        search_category = st.sidebar.text_input("🔍 Search Categories", placeholder="Type to search...", key="category_search")
         
-        selected_categories = [category_display_map[cat] for cat in selected_display_categories]
-        filters['categories'] = selected_categories
+        # Show search results below search bar
+        if search_category:
+            matching_categories = [c for c in display_categories if search_category.lower() in c.lower()]
+            if matching_categories:
+                st.sidebar.markdown(f"**Found {len(matching_categories)} categories:**")
+                # Show first 10 results with click buttons
+                for category in matching_categories[:10]:
+                    col1, col2 = st.sidebar.columns([4, 1])
+                    with col1:
+                        if st.sidebar.button(f"➕ {category}", key=f"add_cat_{hash(category)}", help=f"Add {category}", use_container_width=True):
+                            original_category = category_display_map[category]
+                            if original_category not in st.session_state.selected_categories:
+                                st.session_state.selected_categories.append(original_category)
+                                st.rerun()
+                if len(matching_categories) > 10:
+                    st.sidebar.markdown(f"... and {len(matching_categories) - 10} more results")
+            else:
+                st.sidebar.info(f"No categories found matching '{search_category}'")
+        
+        # Show currently selected categories
+        if st.session_state.selected_categories:
+            st.sidebar.markdown("**Selected Categories:**")
+            categories_to_remove = []
+            for category in st.session_state.selected_categories:
+                display_name = simplify_category_name(category)
+                col1, col2 = st.sidebar.columns([3, 1])
+                with col1:
+                    st.sidebar.markdown(f"✓ {display_name}")
+                with col2:
+                    if st.sidebar.button("❌", key=f"remove_cat_{hash(category)}", help=f"Remove {display_name}"):
+                        categories_to_remove.append(category)
+            
+            # Remove categories marked for removal
+            for category in categories_to_remove:
+                st.session_state.selected_categories.remove(category)
+                st.rerun()
+            
+            if st.sidebar.button("Clear All Categories"):
+                st.session_state.selected_categories = []
+                st.rerun()
+        
+        filters['categories'] = st.session_state.selected_categories
     
     return filters
 
@@ -1043,6 +1094,9 @@ def main():
     st.markdown("### Advanced Business Analytics Dashboard")
     st.markdown("---")
     
+    # Show data status once in sidebar
+    show_data_status()
+    
     summary = load_summary_data()
     session_df, user_df, brand_df, category_df = load_feature_data()
     cleaned_df = load_cleaned_data()
@@ -1057,17 +1111,17 @@ def main():
     st.sidebar.markdown("### 📊 Export Reports")
     to_excel, create_summary_report = create_export_functions()
     
-    if st.sidebar.button("📋 Generate Comprehensive Report"):
+    if st.sidebar.button("📋 Generate Report"):
         try:
             report_sheets = create_summary_report(summary, session_df, user_df, brand_df, category_df)
             excel_data = to_excel(report_sheets)
             st.sidebar.download_button(
                 "💾 Download Excel Report",
                 excel_data,
-                f"ecommerce_comprehensive_report_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                f"ecommerce_report_{datetime.now().strftime('%Y%m%d')}.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-            st.sidebar.success("✅ Comprehensive report generated! Click download button above.")
+            st.sidebar.success("✅Report generated! Click download button above.")
         except Exception as e:
             st.sidebar.error(f"Error generating report: {str(e)}")
     

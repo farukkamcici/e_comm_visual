@@ -9,52 +9,36 @@ import pickle
 import gzip
 import requests
 from io import BytesIO
-from pathlib import Path
-import json
 
 # Cloud deployment configuration
 DEPLOYMENT_CONFIG = {
     "github_release_url": "https://github.com/farukkamcici/e_comm_visual/releases/download/1.0.0/deployment_package.pkl.gz",
-    "fallback_local": True,
+    "fallback_local": False,  # Cloud-only deployment
     "cache_ttl": 3600  # Cache for 1 hour
 }
 
 @st.cache_data(ttl=DEPLOYMENT_CONFIG["cache_ttl"])
 def load_deployment_package():
-    """Load the pre-processed deployment package from cloud or local"""
+    """Load the pre-processed deployment package from cloud"""
     
-    package = None
-    
-    # Try loading from cloud first
     try:
-        st.info("🔄 Loading data from cloud...")
         response = requests.get(DEPLOYMENT_CONFIG["github_release_url"], timeout=30)
         response.raise_for_status()
         
         with gzip.open(BytesIO(response.content), 'rb') as f:
             package = pickle.load(f)
         
-        st.success("✅ Cloud data loaded successfully!")
+        return package
+        
+    except requests.exceptions.RequestException as e:
+        st.error(f"❌ Network error loading cloud data: {str(e)}")
+        st.error("Please check your internet connection and try again.")
+        return None
         
     except Exception as e:
-        st.warning(f"⚠️ Cloud loading failed: {str(e)}")
-        
-        # Fallback to local file if available
-        if DEPLOYMENT_CONFIG["fallback_local"]:
-            try:
-                st.info("🔄 Trying local deployment package...")
-                with gzip.open("deployment_package.pkl.gz", 'rb') as f:
-                    package = pickle.load(f)
-                st.success("✅ Local deployment package loaded!")
-                
-            except FileNotFoundError:
-                st.error("❌ No deployment package found. Please run create_deployment_package.py first.")
-                return None
-    
-    if package:
-        st.sidebar.success(f"📊 Data loaded: {package['stats']['total_sessions']:,} sessions")
-        
-    return package
+        st.error(f"❌ Error loading cloud data: {str(e)}")
+        st.error("Please contact support if this issue persists.")
+        return None
 
 @st.cache_data
 def load_summary_data_cloud():
@@ -88,63 +72,40 @@ def load_feature_data_cloud():
 
 @st.cache_data
 def load_cleaned_data_cloud():
-    """Create cleaned data view from features for filtering"""
-    session_df, user_df, brand_df, category_df = load_feature_data_cloud()
-    
-    if session_df is None or session_df.empty:
+    """Load cleaned data from deployment package"""
+    package = load_deployment_package()
+    if not package:
         return pd.DataFrame()
     
-    # Create a simplified cleaned data view for filtering
-    # This won't have all original events, but enough for dashboard filters
-    cleaned_df = session_df[['user_id', 'user_session', 'brand', 'category_code', 'session_started_at']].copy()
-    cleaned_df['event_time'] = cleaned_df['session_started_at']
-    cleaned_df['event_type'] = 'session'  # Simplified for filtering
+    cleaned_data = package.get("cleaned_data", [])
+    if not cleaned_data:
+        return pd.DataFrame()
+    
+    # Convert back to DataFrame
+    cleaned_df = pd.DataFrame(cleaned_data)
+    
+    # Convert datetime column if it exists
+    if 'event_time' in cleaned_df.columns:
+        cleaned_df['event_time'] = pd.to_datetime(cleaned_df['event_time'], errors='coerce')
     
     return cleaned_df
 
-def check_deployment_mode():
-    """Check if running in deployment mode or local mode"""
-    local_files = [
-        "data/features/session_features.csv",
-        "data/features/user_features.csv", 
-        "outputs/summary_2025080105.json"
-    ]
-    
-    # If any local files exist, we're in local mode
-    for file_path in local_files:
-        if Path(file_path).exists():
-            return "local"
-    
-    # Check if deployment package exists
-    if Path("deployment_package.pkl.gz").exists():
-        return "local_deployment"
-    
-    return "cloud"
+def show_data_status():
+    """Show data status in sidebar (call once per app run)"""
+    package = load_deployment_package()
+    if package:
+        metadata = package.get('metadata', {})
+        total_sessions = metadata.get('total_sessions', 0)
+        total_users = metadata.get('total_users', 0)
+        created_at = metadata.get('created_at', 'Unknown')
+        
+        st.sidebar.success(f"📊 Cloud Data: {total_sessions:,} sessions, {total_users:,} users")
+        st.sidebar.info(f"📅 Updated: {created_at[:10]}")
 
 def get_data_loaders():
-    """Get appropriate data loading functions based on deployment mode"""
-    mode = check_deployment_mode()
-    
-    if mode == "cloud":
-        st.sidebar.info("🌐 Running in cloud mode")
-        return {
-            "load_summary_data": load_summary_data_cloud,
-            "load_feature_data": load_feature_data_cloud,
-            "load_cleaned_data": load_cleaned_data_cloud
-        }
-    elif mode == "local_deployment":
-        st.sidebar.info("📦 Running with local deployment package")
-        return {
-            "load_summary_data": load_summary_data_cloud,
-            "load_feature_data": load_feature_data_cloud, 
-            "load_cleaned_data": load_cleaned_data_cloud
-        }
-    else:
-        st.sidebar.info("💻 Running in local development mode")
-        # Import original functions
-        from app import load_summary_data, load_feature_data, load_cleaned_data
-        return {
-            "load_summary_data": load_summary_data,
-            "load_feature_data": load_feature_data,
-            "load_cleaned_data": load_cleaned_data
-        }
+    """Get cloud-only data loading functions"""
+    return {
+        "load_summary_data": load_summary_data_cloud,
+        "load_feature_data": load_feature_data_cloud,
+        "load_cleaned_data": load_cleaned_data_cloud
+    }

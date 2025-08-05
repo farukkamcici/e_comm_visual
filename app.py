@@ -33,23 +33,25 @@ def load_summary_data():
 
 @st.cache_data
 def load_feature_data():
-    # All feature data is now embedded in the summary JSON
-    summary = load_summary_data()
-    if not summary:
+    try:
+        session_df = pd.read_csv("data/features/session_features.csv", parse_dates=['session_started_at', 'session_ended_at'])
+        user_df = pd.read_csv("data/features/user_features.csv")
+        brand_df = pd.read_csv("data/features/brand_features.csv")
+        category_df = pd.read_csv("data/features/category_features.csv")
+        return session_df, user_df, brand_df, category_df
+    except FileNotFoundError:
+        st.error("Feature files not found. Please run the feature building pipeline first.")
         return None, None, None, None
-    
-    # Feature data loading disabled - using JSON summary only
-    return None, None, None, None
 
 @st.cache_data
 def load_cleaned_data():
-    # Create a minimal cleaned data view from summary for filtering
-    summary = load_summary_data()
-    if not summary:
+    try:
+        df = pd.read_csv("data/cleaned/cleaned_data.csv")
+        df['event_time'] = pd.to_datetime(df['event_time'])
+        return df
+    except FileNotFoundError:
+        st.error("Cleaned data not found.")
         return pd.DataFrame()
-    
-    # Cleaned data loading disabled - using JSON summary only
-    return pd.DataFrame()
 
 def create_sidebar_filters(session_df, cleaned_df):
     """Create sidebar filters for date range, brands, and categories"""

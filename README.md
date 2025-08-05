@@ -127,29 +127,6 @@ streamlit run app.py
 ```
 The dashboard will be available at `http://localhost:8501`
 
-### Cloud Deployment
-
-#### Creating Deployment Package
-For cloud deployment (Streamlit Cloud, Heroku, etc.), create a compressed data package:
-
-```bash
-# Create deployment package with all processed data
-python create_deployment_package.py
-```
-
-This generates `deployment_package.pkl.gz` containing all required data for cloud deployment.
-
-#### Streamlit Cloud Deployment
-1. **Upload Data Package**: Upload `deployment_package.pkl.gz` to GitHub Releases
-2. **Update Configuration**: Modify the URL in `cloud_data_loader.py` to point to your release
-3. **Deploy**: Connect your repository to Streamlit Cloud
-4. **Automatic Detection**: The app automatically detects cloud environment and loads data accordingly
-
-#### Cloud Architecture Benefits
-- **Fast Loading**: Pre-processed data loads in seconds vs. minutes for raw data
-- **Reduced Memory**: Compressed data packages use 70-80% less memory
-- **Auto-Caching**: Intelligent caching reduces repeated data loading
-- **Scalable**: Handles datasets with millions of events efficiently
 
 ### 📈 Dashboard Navigation
 

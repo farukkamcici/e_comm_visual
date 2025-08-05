@@ -6,6 +6,10 @@ on:
     - cron: '*/25 * * * *'
   workflow_dispatch:
 
+permissions:
+  issues: write
+  contents: read
+
 jobs:
   monitor-app:
     runs-on: ubuntu-latest
@@ -15,7 +19,7 @@ jobs:
       id: health_check
       run: |
         # Replace with your actual Streamlit Cloud URL
-        APP_URL="https://ecommvisual-abxuz8k68gjeubunhvrkdp.streamlit.app/
+        APP_URL="https://ecommvisual-abxuz8k68gjeubunhvrkdp.streamlit.app"
         HEALTH_URL="$APP_URL/?health=check"
         
         echo "app_url=$APP_URL" >> $GITHUB_OUTPUT

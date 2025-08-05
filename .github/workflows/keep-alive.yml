@@ -2,8 +2,8 @@ name: Advanced Keep Alive Monitor
 
 on:
   schedule:
-    # Run every 25 minutes
-    - cron: '*/25 * * * *'
+    # Run every 10 minutes
+    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 permissions:

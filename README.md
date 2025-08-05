@@ -1,7 +1,6 @@
 # E-Commerce Intelligence Hub 🛍️
 
-A comprehensive e-commerce analytics platform that transforms raw transaction data into actionable business insights through advanced data processing, feature engineering, and interactive visualizations. Built for data analysts, business intelligence teams, and e-commerce professionals who need deep insights into customer behavior and business performance.
-
+A comprehensive e-commerce analytics platform that transforms raw transaction data into actionable business insights through advanced data processing, feature engineering, and interactive visualizations.
 ## 🚀 Key Features
 
 ### 📊 **Interactive Analytics Dashboard**

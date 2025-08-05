@@ -90,7 +90,7 @@ Download the e-commerce events dataset and place it in `data/raw/events.csv`:
 - `event_time`: Timestamp of the event
 
 **Download Instructions:**
-1. Visit the [Kaggle dataset page](https://www.kaggle.com/datasets/mkechinov/ecommerce-events-history-in-cosmetics-shop)
+1. Visit the [Kaggle dataset page](https://www.kaggle.com/datasets/mkechinov/ecommerce-events-history-in-electronics-store)
 2. Download the CSV file
 3. Place it as `data/raw/events.csv` in your project directory
 

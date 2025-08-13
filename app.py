@@ -1201,9 +1201,104 @@ def main():
 
     with tab6:
         if st.session_state.loaded_heavy:
-            # 🔧 ufak markdown hatası fix: kapatma **
             st.subheader("🔍 Advanced Data Explorer")
-            # ... mevcut explorer kodun ...
+
+            explorer_tab1, explorer_tab2, explorer_tab3, explorer_tab4 = st.tabs([
+                "📊 Feature Data",
+                "📈 Summary Metrics",
+                "📋 Complete JSON",
+                "🔍 Search & Filter"
+            ])
+
+            with explorer_tab1:
+                if session_df is not None:
+                    st.markdown("**Session Features Sample**")
+                    display_df = session_df
+                    if filters:
+                        if 'date_range' in filters and len(filters['date_range']) == 2:
+                            start_date, end_date = filters['date_range']
+                            display_df = session_df[
+                                (session_df['session_started_at'].dt.date >= start_date) &
+                                (session_df['session_started_at'].dt.date <= end_date)
+                                ]
+                    st.dataframe(display_df.head(100))
+
+                    if user_df is not None:
+                        st.markdown("**Top Users by Spending**")
+                        top_users = user_df.nlargest(20, 'user_total_spending')
+                        st.dataframe(top_users)
+
+            with explorer_tab2:
+                funnel = summary.get("funnel", {})
+                revenue = summary.get("revenue", {})
+
+                st.markdown("**Key Performance Metrics**")
+                metrics_df = pd.DataFrame([
+                    {"Metric": "Total Sessions", "Value": f"{funnel.get('total_sessions', 0):,}"},
+                    {"Metric": "Sessions with Views", "Value": f"{funnel.get('sessions_with_views', 0):,}"},
+                    {"Metric": "Sessions with Carts", "Value": f"{funnel.get('sessions_with_carts', 0):,}"},
+                    {"Metric": "Sessions with Purchases", "Value": f"{funnel.get('sessions_with_purchases', 0):,}"},
+                    {"Metric": "Total Revenue", "Value": f"${revenue.get('total_revenue', 0):,.2f}"},
+                    {"Metric": "Revenue Generating Sessions",
+                     "Value": f"{revenue.get('revenue_generating_sessions', 0):,}"},
+                ])
+                st.dataframe(metrics_df, use_container_width=True)
+
+            with explorer_tab3:
+                st.markdown("**Complete Analytics Summary**")
+                st.json(summary)
+
+            with explorer_tab4:
+                st.markdown("**🔍 Interactive Search & Filter**")
+
+                if filtered_cleaned_df is not None and not filtered_cleaned_df.empty:
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        search_term = st.text_input("🔍 Search Products/Brands/Categories",
+                                                    placeholder="Enter search term...")
+
+                    with col2:
+                        event_type_filter = st.selectbox("Filter by Event Type",
+                                                         options=['All'] + list(
+                                                             filtered_cleaned_df['event_type'].unique()))
+
+                    search_df = filtered_cleaned_df.copy()
+
+                    if search_term:
+                        search_df = search_df[
+                            search_df['brand'].str.contains(search_term, case=False, na=False) |
+                            search_df['category_code'].str.contains(search_term, case=False, na=False) |
+                            search_df['product_id'].astype(str).str.contains(search_term, case=False, na=False)
+                            ]
+
+                    if event_type_filter != 'All':
+                        search_df = search_df[search_df['event_type'] == event_type_filter]
+
+                    st.markdown(f"**Search Results:** {len(search_df):,} records found")
+
+                    if len(search_df) > 0:
+                        if 'purchase_spending' in search_df.columns:
+                            top_products = search_df.groupby(['product_id', 'brand', 'category_code']).agg({
+                                'purchase_spending': 'sum',
+                                'event_type': 'count'
+                            }).reset_index().sort_values('purchase_spending', ascending=False).head(10)
+
+                            if len(top_products) > 0:
+                                top_products['category_display'] = top_products['category_code'].apply(
+                                    simplify_category_name)
+                                display_cols = ['product_id', 'brand', 'category_display', 'purchase_spending',
+                                                'event_type']
+                                st.markdown("**🏆 Top Products by Revenue:**")
+                                st.dataframe(top_products[display_cols])
+
+                        st.markdown("**📋 Sample Data:")
+                        st.dataframe(search_df.head(50))
+                    else:
+                        st.info("No results found for your search criteria.")
+                else:
+                    st.info("No data available for search. Please check your filters.")
+
         else:
             st.info("Load detailed data to use the Data Explorer.")
 

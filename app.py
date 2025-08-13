@@ -533,7 +533,7 @@ def create_customer_retention_analysis(user_df, session_df, cleaned_df):
                     include_lowest=True
                 )
         
-        segment_stats = user_df_copy.groupby('ltv_segment').agg({
+        segment_stats = user_df_copy.groupby('ltv_segment', observed = True).agg({
             'user_id': 'count',
             'user_total_spending': 'mean',
             'user_total_sessions': 'mean'
@@ -698,6 +698,7 @@ def create_time_optimization_dashboard(summary, filtered_df=None):
         st.markdown("**📊 Time Period Performance**")
         
         if filtered_df is not None and not filtered_df.empty:
+            filtered_df = filtered_df.copy()
             filtered_df['hour'] = filtered_df['event_time'].dt.hour
             filtered_df['time_period'] = filtered_df['hour'].apply(lambda x: 
                 'Night' if x < 6 else
@@ -1142,6 +1143,10 @@ def main():
     # 🔹 3) Filtreler (ağır data varsa etkili)
     cleaned_df = getattr(st.session_state, "cleaned_df", None)
     session_df = getattr(st.session_state, "session_df", None)
+    user_df = getattr(st.session_state, "user_df", None)
+    brand_df = getattr(st.session_state, "brand_df", None)
+    category_df = getattr(st.session_state, "category_df", None)
+
     filters = create_sidebar_filters(session_df, cleaned_df) if st.session_state.loaded_heavy else {}
 
     has_active_filters = bool(
@@ -1292,7 +1297,7 @@ def main():
                                 st.markdown("**🏆 Top Products by Revenue:**")
                                 st.dataframe(top_products[display_cols])
 
-                        st.markdown("**📋 Sample Data:")
+                        st.markdown("**📋 Sample Data:**")
                         st.dataframe(search_df.head(50))
                     else:
                         st.info("No results found for your search criteria.")
